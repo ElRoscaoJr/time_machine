@@ -1,10 +1,10 @@
-"""Entretiempo V2. CAD en milímetros. Python 3.13 y build123d 0.13."""
+"""Entretiempo V2.1. CAD en milímetros. Python 3.13 y build123d 0.13."""
 from dataclasses import dataclass
 from pathlib import Path
 
 from build123d import (
-    Align, Box, Cone, Compound, Cylinder, Plane, Pos, RectangleRounded, Rot, Text,
-    export_step, export_stl, extrude, loft, mirror,
+    Align, Box, Cone, Compound, Cylinder, FontStyle, Plane, Pos, RectangleRounded, Rot, Text,
+    SlotCenterToCenter, export_step, export_stl, extrude, loft, mirror,
 )
 
 MIN = Align.MIN
@@ -37,6 +37,9 @@ class Medidas:
     paso_x: float = 75.14
     paso_y: float = 51.39
     agujero_izq: float = 10.34
+    pletina_t: float = 3.2
+    pletina_paso_pantalla_w: float = 5.0
+    pletina_paso_pantalla_h: float = 3.0
     rail_w: float = 5.6
     rail_t: float = 3.2
     rail_poste_z: float = 12
@@ -69,7 +72,15 @@ class Medidas:
 
     @property
     def rail_z(self):
-        return self.cristal_z + self.fondo_tetones + self.pad_trasero_comprimido
+        return self.apoyo_tetones_z + self.pad_trasero_comprimido
+
+    @property
+    def apoyo_tetones_z(self):
+        return self.cristal_z + self.fondo_tetones
+
+    @property
+    def separador_pletina_t(self):
+        return self.apoyo_tetones_z - self.rail_poste_z
 
     @property
     def tetones_x(self):
@@ -117,6 +128,7 @@ def validar_parametros(m):
     assert m.bandeja_x + m.bateria_w + m.modulos_w + 2 * m.bandeja_pared < m.ancho / 2 - m.pared
     assert m.bandeja_h / 2 + m.bandeja_pared < m.alto / 2 - m.pared
     assert m.profundidad - m.bandeja_d > m.rail_z + m.rail_t + 10
+    assert m.separador_pletina_t > 0
 
 
 def ventana(m):
@@ -160,7 +172,7 @@ def frontal(m):
     pieza -= cilindro(m.encoder_x, 0, -EPS, 22, m.frontal + 2 * EPS)
 
     letras = Pos(m.pantalla_x, 33, -EPS) * Rot(0, 180, 180) * Text(
-        "E N T R E T I E M P O", 4.7, font="FreeSans")
+        "DANIELA’S TIME MACHINE", 4.1, font="FreeSans", font_style=FontStyle.BOLD)
     pieza -= extrude(letras, 0.65, dir=(0, 0, 1))
     for x in (-61, 11):
         pieza -= prisma(7, 0.9, 0.4, 0.68, -EPS, x, 33)
@@ -229,10 +241,42 @@ def rail(m):
         if yy != y:
             pieza += prisma(7.6, abs(yy - y) + 5, 2.4, m.rail_t, z, x, (yy + y) / 2)
         pieza -= cilindro(x, yy, z - EPS, m.paso_m3, m.rail_t + 2 * EPS)
-    # Slots de inspección y de fijación opcional en los tetones documentados.
+    # Ventanas para ver la posición de los tetones en el montaje por presión.
     for x in m.tetones_x:
         pieza -= prisma(5.4, 2.8, 1.38, m.rail_t + 2 * EPS, z - EPS, x, y)
     return pieza
+
+
+def pletina_pantalla(m, lado):
+    y = -m.paso_y / 2
+    x = m.tetones_x[lado]
+    poste_x, poste_y = m.rail_anclajes(y)[lado]
+    z = m.apoyo_tetones_z
+    t = m.pletina_t
+    # El codo del lado de los puertos rodea el poste largo de la tapa.
+    perfil = Pos((poste_x + x) / 2, y, z) * SlotCenterToCenter(abs(poste_x - x), 8)
+    if poste_y != y:
+        perfil += Pos(poste_x, (poste_y + y) / 2, z) * SlotCenterToCenter(
+            abs(poste_y - y), 8, rotation=90)
+    pieza = extrude(perfil, t)
+    if lado == 0:
+        # Deja libre la trayectoria del USB; el ala hacia el canto largo
+        # conserva material alrededor del tornillo y en el puente.
+        borde_paso_usb = y + 2.5
+        pieza -= caja(min(x, poste_x) - 5, borde_paso_usb, z - EPS,
+                      abs(x - poste_x) + 10, 4, t + 2 * EPS)
+    w = m.pletina_paso_pantalla_w
+    h = m.pletina_paso_pantalla_h
+    pieza -= prisma(w, h, h / 2 - 0.02, t + 2 * EPS, z - EPS, x, y)
+    pieza -= cilindro(poste_x, poste_y, z - EPS, m.paso_m3, t + 2 * EPS)
+    return pieza
+
+
+def separador_pletina(m):
+    x, y = m.rail_anclajes(-m.paso_y / 2)[0]
+    z = m.rail_poste_z
+    alto = m.separador_pletina_t
+    return cilindro(x, y, z, 7, alto) - cilindro(x, y, z - EPS, m.paso_m3, alto + 2 * EPS)
 
 
 def soporte_encoder(m, paso, abrazadera=False):
@@ -302,6 +346,9 @@ def piezas(m):
         "09-soporte-encoder-piloto": soporte_encoder(m, m.casquillo_piloto),
         "10-soporte-encoder-abrazadera": soporte_encoder(m, m.casquillo_d, abrazadera=True),
         "11-abrazadera-piloto": soporte_encoder(m, m.casquillo_piloto, abrazadera=True),
+        "12-pletina-lado-puertos": pletina_pantalla(m, 0),
+        "13-pletina-lado-opuesto": pletina_pantalla(m, 1),
+        "14-separador-pletina": separador_pletina(m),
     }
 
 
@@ -314,8 +361,15 @@ def plano_impresion(nombre, pieza):
 
 def ensamblaje(m, modelos):
     componentes = [(nombre, pieza) for nombre, pieza in modelos.items()
-                   if not nombre.startswith(("07", "08", "09", "10", "11"))]
-    componentes.append(("04-rail-pantalla-inferior", mirror(modelos["04-rail-pantalla"], about=Plane.XZ)))
+                   if nombre.startswith(("01", "02", "03", "05", "06", "12", "13"))]
+    for nombre in ("12-pletina-lado-puertos", "13-pletina-lado-opuesto"):
+        componentes.append((f"{nombre}-inferior", mirror(modelos[nombre], about=Plane.XZ)))
+    separador = modelos["14-separador-pletina"]
+    izq, der = m.rail_anclajes(-m.paso_y / 2)
+    otro = Pos(der[0] - izq[0], der[1] - izq[1], 0) * separador
+    for n, pieza in enumerate((separador, mirror(separador, about=Plane.XZ),
+                               otro, mirror(otro, about=Plane.XZ)), 1):
+        componentes.append((f"14-separador-{n}", pieza))
     for nombre, pieza in componentes:
         pieza.label = nombre
     return componentes
@@ -331,7 +385,7 @@ def exportar(destino):
         assert imp.is_valid and len(imp.solids()) == 1, nombre
         assert export_stl(imp, destino / "stl" / f"{nombre}.stl", tolerance=0.025, angular_tolerance=0.10)
         assert export_step(imp, destino / "step" / f"{nombre}.step")
-    conjunto = Compound(children=[p for _, p in ensamblaje(m, modelos)], label="Entretiempo V2")
+    conjunto = Compound(children=[p for _, p in ensamblaje(m, modelos)], label="Daniela’s Time Machine")
     assert export_step(conjunto, destino / "step" / "00-conjunto.step")
 
 

@@ -1,0 +1,10 @@
+/firmware/build/
+/firmware/managed_components/
+/firmware/sdkconfig
+/firmware/sdkconfig.old
+/firmware/main/local_config.h
+/firmware/web/node_modules/
+/firmware/web/dist/
+__pycache__/
+/firmware/main/profile-avatar.rgb565
+/firmware/web/profile-avatar.jpg
