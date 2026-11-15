@@ -20,7 +20,9 @@ typedef struct {
     size_t jpeg_size;
 } photo_t;
 
-typedef enum { LIB_OK, LIB_INVALID, LIB_MISSING, LIB_CONFLICT, LIB_IO, LIB_FULL, LIB_DUPLICATE } lib_result_t;
+typedef enum {
+    LIB_OK, LIB_INVALID, LIB_MISSING, LIB_CONFLICT, LIB_IO, LIB_FULL, LIB_DUPLICATE, LIB_FUTURE_DATE
+} lib_result_t;
 
 bool library_init(bool mounted);
 bool library_ready(void);

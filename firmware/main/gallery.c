@@ -41,6 +41,9 @@ static lv_obj_t *avatar_frame, *avatar_image;
 #define BRASS 0xa68a56
 #define AMBER 0xffbd62
 #define COAL 0x141311
+#define PHOTO_STAGE_HEIGHT 244
+#define FOOTER_BUTTON_Y (PHOTO_STAGE_HEIGHT + 3)
+#define FOOTER_BUTTON_HEIGHT 30
 #define TRACK 424
 #define TRACK_INSET (MARKER_SIZE / 2)
 #define MARKER_SIZE 10
@@ -69,6 +72,7 @@ static int turn_target = -1;
 static int turn_direction;
 static bool turning, turned;
 static lv_obj_t *home, *picture, *caption, *age_label, *track, *cursor;
+static lv_font_t spanish_title_font;
 static lv_obj_t *end_label, *start_label, *placeholder, *welcome, *paper_edge, *track_fill;
 static lv_obj_t *photo_location, *photo_note, *date_button;
 static lv_obj_t *sheet, *editor, *keyboard, *scroll, *note_status;
@@ -211,11 +215,18 @@ static void show_photo_details(const frame_t *frame)
     show_caption(photo_note, frame ? frame->note_preview : "");
 }
 
+static unsigned photo_scale(const frame_t *frame)
+{
+    unsigned height = frame->image.header.h;
+    return height > PHOTO_STAGE_HEIGHT ? PHOTO_STAGE_HEIGHT * 256 / height : 256;
+}
+
 static void show_frame(int slot)
 {
     showing = slot;
     lv_image_set_src(picture, &frames[slot].image);
     lv_image_set_pivot(picture, frames[slot].image.header.w/2, frames[slot].image.header.h/2);
+    lv_image_set_scale(picture, photo_scale(&frames[slot]));
     lv_obj_center(picture);
     lv_obj_add_flag(welcome, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(picture, LV_OBJ_FLAG_HIDDEN);
@@ -236,13 +247,14 @@ static void turn_frame(void *object, int32_t progress)
         turned = true;
     }
     int distance = progress < 128 ? progress : 256 - progress;
-    unsigned scale = 256 - distance * 240 / 128;
+    unsigned fitted_scale = photo_scale(&frames[showing]);
+    unsigned scale = fitted_scale * (256 - distance * 240 / 128) / 256;
     lv_image_set_scale_y(picture, scale);
     int offset = -turn_direction * distance / 10;
     lv_obj_align(picture, LV_ALIGN_CENTER, 0, offset);
     lv_obj_align(paper_edge, LV_ALIGN_CENTER, 0, offset);
     if (distance >= 100) {
-        lv_obj_set_width(paper_edge, frames[showing].image.header.w);
+        lv_obj_set_width(paper_edge, frames[showing].image.header.w * fitted_scale / 256);
         lv_obj_remove_flag(paper_edge, LV_OBJ_FLAG_HIDDEN);
     } else lv_obj_add_flag(paper_edge, LV_OBJ_FLAG_HIDDEN);
 }
@@ -374,8 +386,9 @@ static int track_x(int day)
 static void timeline(int today)
 {
     int start = PROFILE_BIRTH ? PROFILE_BIRTH : 20000101;
-    int end = today ? today : library_last_date();
-    if (end < start) end = start;
+    int newest = library_last_date();
+    int end = LV_MAX(today, newest);
+    end = LV_MAX(end, start);
     first_day = date_day(start);
     last_day = date_day(end);
     if (last_day <= first_day) last_day = first_day + 1;
@@ -552,14 +565,11 @@ static void intro_advance(lv_event_t *event)
 
 static void intro_start(void)
 {
-    static lv_font_t title_font;
-    title_font = lv_font_montserrat_20;
-    title_font.fallback = &font_es_14;
     intro_overlay = box(lv_layer_top(),0,0,480,320,COAL);
     lv_obj_remove_flag(intro_overlay, LV_OBJ_FLAG_SCROLL_CHAIN);
     box(intro_overlay,34,42,44,2,AMBER);
     intro_title = label(intro_overlay,34,63,"",AMBER);
-    lv_obj_set_style_text_font(intro_title, &title_font, 0);
+    lv_obj_set_style_text_font(intro_title, &spanish_title_font, 0);
     lv_obj_set_width(intro_title, 412);
     intro_body = label(intro_overlay,34,106,"",PAPER);
     lv_obj_set_width(intro_body,408);
@@ -682,6 +692,8 @@ static void save_details(lv_event_t *event)
     }
     cJSON_Delete(meta);
     if (result == LIB_OK) close_note(NULL);
+    else if (result == LIB_FUTURE_DATE)
+        lv_label_set_text(note_status,"La fecha no puede ser posterior a hoy.");
     else lv_label_set_text(note_status,result == LIB_CONFLICT ?
         "La ficha cambió. Ciérrala y vuelve a abrirla." : "No se pudo guardar la ficha.");
 }
@@ -718,7 +730,7 @@ static void edit_details(lv_event_t *event)
     if (date) snprintf(date_text,sizeof(date_text),"%02d/%02d/%04d",date%100,date/100%100,date/10000);
     sheet = box(home,0,0,480,320,COAL);
     lv_obj_t *title = label(sheet,12,10,"Fecha y ubicación",AMBER);
-    lv_obj_set_style_text_font(title,&lv_font_montserrat_20,0);
+    lv_obj_set_style_text_font(title,&spanish_title_font,0);
     date_field = photo_field(12,132,"Fecha","DD/MM/AAAA",date_text);
     lv_textarea_set_accepted_chars(date_field,"0123456789/");
     lv_textarea_set_max_length(date_field,10);
@@ -900,12 +912,14 @@ static void inputs(void *arg)
 void gallery_start(bool intro)
 {
     lvgl_port_lock(0);
+    spanish_title_font = lv_font_montserrat_20;
+    spanish_title_font.fallback = &font_es_14;
     lv_timer_set_period(lv_anim_get_timer(), 20);
     lv_timer_set_period(lv_display_get_refr_timer(lv_display_get_default()), 20);
     home = lv_screen_active();
     lv_obj_remove_flag(home,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(home,lv_color_hex(COAL),0);
-    lv_obj_t *photo_stage = box(home,0,0,480,254,COAL);
+    lv_obj_t *photo_stage = box(home,0,0,480,PHOTO_STAGE_HEIGHT,COAL);
     lv_obj_add_event_cb(photo_stage,open_note,LV_EVENT_SHORT_CLICKED,NULL);
     picture = lv_image_create(photo_stage);
     lv_image_set_antialias(picture, false);
@@ -931,7 +945,7 @@ void gallery_start(bool intro)
     lv_label_set_long_mode(photo_note, LV_LABEL_LONG_DOT);
     lv_obj_align(photo_note, LV_ALIGN_BOTTOM_LEFT, 15, -6);
     lv_obj_add_flag(photo_note, LV_OBJ_FLAG_HIDDEN);
-    welcome = box(home,0,0,480,254,COAL);
+    welcome = box(home,0,0,480,PHOTO_STAGE_HEIGHT,COAL);
     avatar_frame = box(welcome,202,22,76,76,BRASS);
     lv_obj_set_style_radius(avatar_frame, LV_RADIUS_CIRCLE, 0);
     lv_obj_t *crop = box(avatar_frame,2,2,72,72,COAL);
@@ -957,15 +971,20 @@ void gallery_start(bool intro)
     lv_obj_align(placeholder,LV_ALIGN_TOP_MID,0,164);
     lv_obj_t *panel_button = button(welcome,168,200,144,"Panel web",open_panel_help);
     lv_obj_set_height(panel_button,42);
-    box(home,0,254,480,1,0x423720);
-    date_button = button(home,16,254,132,"",edit_details);
-    lv_obj_set_height(date_button,26);
+    box(home,0,PHOTO_STAGE_HEIGHT,480,1,0x423720);
+    date_button = button(home,16,FOOTER_BUTTON_Y,132,"",edit_details);
+    lv_obj_set_height(date_button,FOOTER_BUTTON_HEIGHT);
+    lv_obj_set_style_pad_all(date_button,0,0);
     caption = lv_obj_get_child(date_button,0);
-    age_label = label(home,162,259,"",AMBER);
-    lv_obj_set_width(age_label,188);
+    age_label = label(home,0,0,"",AMBER);
+    lv_obj_set_width(age_label,176);
+    lv_obj_set_style_text_align(age_label,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_align(age_label,LV_ALIGN_TOP_MID,0,
+        FOOTER_BUTTON_Y + (FOOTER_BUTTON_HEIGHT - lv_font_get_line_height(&font_es_14)) / 2);
     lv_label_set_long_mode(age_label,LV_LABEL_LONG_DOT);
-    lv_obj_t *connect = button(home,357,254,106,"Conectar",open_panel_help);
-    lv_obj_set_height(connect,26);
+    lv_obj_t *connect = button(home,357,FOOTER_BUTTON_Y,106,"Conectar",open_panel_help);
+    lv_obj_set_height(connect,FOOTER_BUTTON_HEIGHT);
+    lv_obj_set_style_pad_all(connect,0,0);
     track = box(home,24,280,435,40,COAL);
     lv_obj_add_flag(track,LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(track,jump,LV_EVENT_CLICKED,NULL);

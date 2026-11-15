@@ -399,6 +399,12 @@ static int meta_date(cJSON *meta)
     return date_parse(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(meta, "date")));
 }
 
+static bool date_in_future(int date)
+{
+    int today = date_today();
+    return today > 0 && date > today;
+}
+
 // Called under the library lock so two uploads cannot both publish the same JPEG.
 static lib_result_t check_duplicate(const char *staged, size_t size)
 {
@@ -433,6 +439,8 @@ static lib_result_t check_duplicate(const char *staged, size_t size)
 lib_result_t library_create(cJSON *meta, const char *staged, uint64_t *id)
 {
     if (!valid_meta(meta)) return LIB_INVALID;
+    int date = meta_date(meta);
+    if (date_in_future(date)) return LIB_FUTURE_DATE;
     struct stat info;
     if (stat(staged, &info)) return LIB_IO;
     unsigned w, h;
@@ -455,7 +463,7 @@ lib_result_t library_create(cJSON *meta, const char *staged, uint64_t *id)
         if (write_meta(*id, 1, meta)) {
             if (!rename(staged, path)) {
                 xSemaphoreTake(index_lock, portMAX_DELAY);
-                photo_t added = {.id = *id, .date = meta_date(meta), .rev = 1, .jpeg_size = info.st_size};
+                photo_t added = {.id = *id, .date = date, .rev = 1, .jpeg_size = info.st_size};
                 size_t lo = 0, hi = count;
                 while (lo < hi) {
                     size_t mid = (lo + hi) / 2;
@@ -480,8 +488,9 @@ static lib_result_t update(size_t pos, uint32_t rev, cJSON *meta)
     if (pos == count) return LIB_MISSING;
     if (photos[pos].rev != rev || rev == UINT32_MAX) return LIB_CONFLICT;
     if (!valid_meta(meta)) return LIB_INVALID;
-    if (!write_meta(photos[pos].id, rev + 1, meta)) return LIB_IO;
     int date = meta_date(meta);
+    if (date != photos[pos].date && date_in_future(date)) return LIB_FUTURE_DATE;
+    if (!write_meta(photos[pos].id, rev + 1, meta)) return LIB_IO;
     xSemaphoreTake(index_lock, portMAX_DELAY);
     ++photos[pos].rev;
     if (photos[pos].date != date) {

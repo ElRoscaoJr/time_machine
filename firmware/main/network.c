@@ -128,6 +128,7 @@ static esp_err_t lib_reply(httpd_req_t *req, lib_result_t result)
     switch (result) {
     case LIB_OK: return reply(req,"200 OK","Guardado");
     case LIB_INVALID: return reply(req,"400 Bad Request","Foto o datos no válidos");
+    case LIB_FUTURE_DATE: return reply(req,"400 Bad Request","La fecha no puede ser posterior a hoy.");
     case LIB_MISSING: return reply(req,"404 Not Found","La foto ya no existe");
     case LIB_CONFLICT: return reply(req,"409 Conflict","La ficha cambió. Vuelve a abrirla antes de guardar");
     case LIB_FULL: return reply(req,"507 Insufficient Storage","Biblioteca llena");

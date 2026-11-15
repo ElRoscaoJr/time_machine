@@ -8,6 +8,7 @@
 #include "esp_lcd_st7796.h"
 #include "esp_lvgl_port.h"
 #include "esp_vfs_fat.h"
+#include "freertos/FreeRTOS.h"
 #include "sdmmc_cmd.h"
 
 #define ENC_A 10
@@ -17,7 +18,26 @@
 static i2c_master_dev_handle_t touch;
 static sdmmc_card_t *card;
 static int previous;
+static int encoder_rest;
 static int edges;
+static int encoder_steps;
+static portMUX_TYPE encoder_lock = portMUX_INITIALIZER_UNLOCKED;
+
+static void encoder_edge(void *arg)
+{
+    (void)arg;
+    static const int8_t transition[] = {0,-1,1,0, 1,0,0,-1, -1,0,0,1, 0,1,-1,0};
+    portENTER_CRITICAL_ISR(&encoder_lock);
+    int current = (gpio_get_level(ENC_A)<<1) | gpio_get_level(ENC_B);
+    if ((previous ^ current) == 3) edges = 0;
+    edges += transition[(previous << 2) | current];
+    previous = current;
+    if (current == encoder_rest) {
+        if (edges == 4 || edges == -4) encoder_steps += edges / 4;
+        edges = 0;
+    }
+    portEXIT_CRITICAL_ISR(&encoder_lock);
+}
 
 static void touch_read(lv_indev_t *device, lv_indev_data_t *data)
 {
@@ -100,7 +120,12 @@ bool board_display(void)
         .mode = GPIO_MODE_INPUT, .pull_up_en = GPIO_PULLUP_ENABLE,
     };
     gpio_config(&encoder);
-    previous = (gpio_get_level(ENC_A)<<1) | gpio_get_level(ENC_B);
+    previous = encoder_rest = (gpio_get_level(ENC_A)<<1) | gpio_get_level(ENC_B);
+    ESP_ERROR_CHECK(gpio_install_isr_service(0));
+    ESP_ERROR_CHECK(gpio_isr_handler_add(ENC_A,encoder_edge,NULL));
+    ESP_ERROR_CHECK(gpio_isr_handler_add(ENC_B,encoder_edge,NULL));
+    ESP_ERROR_CHECK(gpio_set_intr_type(ENC_A,GPIO_INTR_ANYEDGE));
+    ESP_ERROR_CHECK(gpio_set_intr_type(ENC_B,GPIO_INTR_ANYEDGE));
     gpio_set_level(45, 1);
     return true;
 }
@@ -122,14 +147,11 @@ bool board_sd(void)
 
 int board_encoder(void)
 {
-    static const int8_t transition[] = {0,-1,1,0, 1,0,0,-1, -1,0,0,1, 0,1,-1,0};
-    int current = (gpio_get_level(ENC_A)<<1) | gpio_get_level(ENC_B);
-    if ((previous ^ current) == 3) edges = 0;
-    edges += transition[(previous << 2) | current];
-    previous = current;
-    if (edges >= 4) { edges = 0; return 1; }
-    if (edges <= -4) { edges = 0; return -1; }
-    return 0;
+    portENTER_CRITICAL(&encoder_lock);
+    int step = (encoder_steps > 0) - (encoder_steps < 0);
+    encoder_steps -= step;
+    portEXIT_CRITICAL(&encoder_lock);
+    return step;
 }
 
 bool board_pressed(void) { return !gpio_get_level(ENC_SW); }
