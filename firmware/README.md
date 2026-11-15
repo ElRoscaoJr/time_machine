@@ -36,9 +36,17 @@ Conecta un cable USB-C de datos y usa el puerto que aparezca en el equipo. Si ne
 
 1. Conecta el móvil a `time_machine` y abre el aviso de la red. Si el sistema no abre el portal, visita `http://192.168.4.1`.
 2. Desde el panel puedes añadir fotos con la microSD montada, cambiar el avatar y configurar dos redes de 2,4 GHz. Usa «Solo guardar» para registrar una red que esté fuera de alcance. El aparato prueba las redes guardadas al arrancar y vuelve a su red de configuración si falla la conexión. Tras conectarse, vuelve a poner el móvil en la misma red doméstica y abre por HTTP la dirección IP que aparece en Entretiempo.
-3. Si el equipo pierde el acceso a la red, esperará un intento de reconexión antes de levantar su red de configuración. Mantén el pulsador aproximadamente dos segundos para activarla o cerrarla manualmente.
+3. Si el equipo pierde el acceso a la red, esperará un intento de reconexión antes de levantar su red de configuración. Pulsa «Conectar» en la pantalla para saber a qué red conectarte y abrir el panel con el código QR. Si la máquina está sin red, puedes activar `time_machine` desde ese menú.
 
-El panel se sirve por HTTP en la red local. La lectura de EXIF y la compresión se hacen en el navegador, con archivos de uno en uno. Si el navegador no puede decodificar un HEIC, expórtalo a JPEG para subirlo. La ubicación guarda un nombre editable y, si se han confirmado, las coordenadas GPS. El reloj se sincroniza por NTP en la red doméstica y toma la hora del navegador si arrancó sin fecha válida.
+El panel se sirve por HTTP en la red local. La lectura de EXIF y la compresión se hacen en el navegador, con archivos de uno en uno. Si el navegador no puede decodificar un HEIC, expórtalo a JPEG para subirlo. La pantalla y el panel muestran automáticamente una localidad cercana de España para las fotos con GPS y sin nombre guardado, incluidas las que ya están en la microSD. La pantalla muestra las coordenadas junto al nombre del lugar. Si el catálogo no encuentra una localidad a menos de 12 km y la ficha no tiene un nombre guardado, muestra solo las coordenadas. Puedes editar el nombre en la ficha. El reloj se sincroniza por NTP en la red doméstica y toma la hora del navegador si arrancó sin fecha válida.
+
+El catálogo local adapta el [extracto de España de GeoNames](https://www.geonames.org/export/) del 13 de noviembre de 2026, con licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Incluye capitales administrativas y localidades de al menos 100 habitantes, con coordenadas redondeadas a cuatro decimales. La búsqueda funciona sin internet.
+
+En «Añadir fotos» puedes elegir varios archivos. «Guardar» guarda la ficha actual y abre la siguiente. «Guardar todas» guarda la ficha actual e importa las restantes con sus datos EXIF. Se omite una foto si el JPEG adaptado coincide byte a byte con uno que ya está en la microSD. Para borrar varias, usa «Seleccionar fotos», marca las que quieras en una o más páginas y confirma con «Borrar selección».
+
+## Activar la bienvenida
+
+Añade `/bienvenida` a la dirección del panel y pulsa «Activar para el próximo reinicio». La pantalla mostrará la dedicatoria de Daniela al encenderse. Puedes avanzar con «Siguiente» o con el pulsador de la ruedita. La activación se desmarca al pulsar «Ver mis fotos» al final. Si apagas el aparato antes, la dedicatoria empieza de nuevo al encenderlo. También puedes cancelar la activación desde el panel.
 
 ## Cargar y editar la microSD
 
@@ -55,12 +63,16 @@ Cada foto ocupa un JPEG y un JSON con el mismo nombre en `entretiempo/00` a `ent
 
 ## Navegar por las fotos
 
-Al girar despacio, cada paso de la manivela avanza una sola foto, que gira como una tarjeta sobre un eje horizontal. Con giros continuos más rápidos, la distancia por paso crece progresivamente hasta 16 fotos. Tras una pausa o al invertir el giro, el primer paso vuelve a ser de una sola foto. La transición dura unos 145 ms y cambia la imagen cuando se ve de canto. El punto ámbar se desliza por la escala, con una marca por año y rótulos cada cinco años. Durante un giro rápido, el cursor sigue la selección y la foto final se muestra al frenar.
+Al girar despacio, cada paso de la ruedita avanza una sola foto, que gira como una tarjeta sobre un eje horizontal. En galerías de más de 12 fotos, el giro rápido acelera progresivamente hasta cuatro fotos por paso. En galerías más pequeñas, cada paso avanza una foto. Tras una pausa o al invertir el giro, el primer paso vuelve a ser de una sola foto. La transición dura unos 145 ms y cambia la imagen cuando se ve de canto. El punto ámbar se desliza por la escala, con una marca por año y rótulos cada cinco años. Durante un giro rápido, el cursor sigue la selección y la foto final se muestra al frenar.
+
+Si la foto tiene nota, la pantalla muestra una línea con su inicio. Toca la foto o pulsa la ruedita para abrir la nota completa. Arrastra el texto hacia arriba o hacia abajo para leer notas largas. Pulsa «Escribir» o «Editar» en la pantalla para abrir el teclado. Usa «ABC» para las mayúsculas y «1#» para los números y símbolos.
+
+Toca la fecha o la ubicación sobre la foto, pulsa «Editar fecha y ubicación» en la nota o mantén pulsada la ruedita para abrir la misma ficha. Puedes escribir la fecha en formato DD/MM/AAAA y editar el nombre del lugar. Si dejas el lugar vacío, la máquina seguirá buscando una localidad cuando la foto tenga GPS.
 
 ## Pruebas en la placa
 
-- Comprueba la orientación de la pantalla y toca las cuatro esquinas. Verifica que un paso de la manivela mueve una foto y que un giro rápido recorre la escala.
+- Comprueba la orientación de la pantalla y toca las cuatro esquinas. Verifica que un paso de la ruedita mueve una foto y que un giro rápido recorre la escala.
 - Con 5.000 fotos, mide el tiempo hasta el cambio de fecha y hasta la foto final. Los objetivos iniciales son 50 ms para la barra y 300 ms para la foto final tras parar. Repite mientras se sube una foto y al invertir el giro.
-- Abre una nota larga con el pulsador, desplázala con la manivela y prueba escribir, guardar y cancelar en el teclado. Comprueba también el conflicto entre una ficha abierta en el navegador y una modificación desde la pantalla.
+- Abre una nota larga con el pulsador, desplázala con la ruedita y prueba escribir, guardar y cancelar en el teclado. Comprueba también el conflicto entre una ficha abierta en el navegador y una modificación desde la pantalla.
 - Prueba una contraseña Wi-Fi incorrecta, recupera el portal y configura la red correcta. Comprueba NTP, la sincronización desde el móvil y la IP en pantalla.
 - En una tarjeta de prueba, interrumpe una escritura y comprueba que el siguiente arranque recupera la última ficha válida. Haz también una edición desde el ordenador y comprueba que el arranque la recoge.

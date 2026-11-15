@@ -9,6 +9,13 @@ let files = [];
 let fileCount = 0;
 let previewUrl;
 let busy = false;
+let localities;
+let lookupVersion = 0;
+let selecting = false;
+let pageItems = [];
+let deleteBusy = false;
+const selectedPhotos = new Map();
+const selectionDialog = $('#selection-dialog');
 
 function processPhoto(data, transfer = []) {
   return new Promise((resolve, reject) => {
@@ -33,6 +40,7 @@ async function api(path, { method = 'GET', data, body, headers = {} } = {}) {
   if (!response.ok) {
     const error = new Error(await response.text());
     error.status = response.status;
+    error.duplicate = response.headers.get('X-Photo-Duplicate') === '1';
     throw error;
   }
   return response.headers.get('Content-Type')?.includes('application/json') ? response.json() : response.text();
@@ -48,12 +56,17 @@ async function refresh() {
   const summary = [device.count + (device.count === 1 ? ' foto' : ' fotos')];
   if (device.age >= 0) summary.push(device.age + ' años');
   if (device.freeBytes !== undefined) summary.push((device.freeBytes / 1048576).toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' MB libres');
-  if (!device.sd) summary.push('Inserta una microSD FAT32 y reinicia');
+  if (device.loading) summary.push('Leyendo la microSD…');
+  else if (!device.sd) summary.push('Inserta una microSD FAT32 y reinicia');
   $('#summary').textContent = summary.join(' · ');
   $('#files').disabled = !device.sd;
   $('#upload-control').setAttribute('aria-disabled', String(!device.sd));
   if (device.ap) $('#network').open = true;
   updateWifi(device);
+  if (device.loading) {
+    if (location.pathname === '/') setTimeout(() => refresh().catch((error) => status(error.message)), 1500);
+    return;
+  }
   await showPage();
 }
 
@@ -63,7 +76,18 @@ async function showPage() {
     offset = Math.max(0, Math.ceil(page.total / pageSize) - 1) * pageSize;
     return showPage();
   }
-  $('#photos').replaceChildren(...page.items.map(({ id, date }) => {
+  pageItems = page.items;
+  renderPhotos();
+  $('#select-photos').hidden = !page.total || selecting;
+  $('#empty').hidden = !!page.total || $('#files').disabled;
+  $('#pages').hidden = page.total <= pageSize;
+  $('#prev').disabled = offset === 0;
+  $('#next').disabled = offset + pageSize >= page.total;
+  $('#page').textContent = (offset / pageSize + 1) + ' / ' + Math.ceil(page.total / pageSize);
+}
+
+function renderPhotos() {
+  $('#photos').replaceChildren(...pageItems.map(({ id, date, rev }) => {
     const button = document.createElement('button');
     const image = document.createElement('img');
     const label = document.createElement('span');
@@ -73,18 +97,152 @@ async function showPage() {
     image.src = '/api/photos/' + id + '/image';
     label.textContent = date ? date.split('-').reverse().join('/') : 'Sin fecha';
     button.append(image, label);
-    button.onclick = () => openExisting(id).catch((error) => status(error.message));
+    if (selecting) button.setAttribute('aria-pressed', String(selectedPhotos.has(id)));
+    button.onclick = () => {
+      if (!selecting) return openExisting(id).catch((error) => status(error.message));
+      if (selectedPhotos.has(id)) selectedPhotos.delete(id);
+      else selectedPhotos.set(id, rev);
+      button.setAttribute('aria-pressed', String(selectedPhotos.has(id)));
+      updateSelection();
+    };
     return button;
   }));
-  $('#empty').hidden = !!page.total || $('#files').disabled;
-  $('#pages').hidden = page.total <= pageSize;
-  $('#prev').disabled = offset === 0;
-  $('#next').disabled = offset + pageSize >= page.total;
-  $('#page').textContent = (offset / pageSize + 1) + ' / ' + Math.ceil(page.total / pageSize);
+  updateSelection();
+}
+
+function updateSelection() {
+  $('#selection').hidden = !selecting;
+  $('#select-photos').hidden = selecting || !pageItems.length;
+  $('#selection-count').textContent = selectedPhotos.size + ' en la selección';
+  $('#delete-selected').disabled = !selectedPhotos.size;
+  $('#select-page').disabled = !pageItems.length || pageItems.every(({ id }) => selectedPhotos.has(id));
+}
+
+$('#select-photos').onclick = () => { selecting = true; renderPhotos(); };
+$('#cancel-selection').onclick = () => {
+  selecting = false;
+  selectedPhotos.clear();
+  renderPhotos();
+};
+$('#select-page').onclick = () => {
+  for (const { id, rev } of pageItems) if (!selectedPhotos.has(id)) selectedPhotos.set(id, rev);
+  renderPhotos();
+};
+$('#delete-selected').onclick = () => {
+  $('#selection-confirmation').textContent = selectedPhotos.size === 1
+    ? '¿Borrar la foto seleccionada y su nota de la microSD?'
+    : '¿Borrar las ' + selectedPhotos.size + ' fotos seleccionadas y sus notas de la microSD?';
+  selectionDialog.showModal();
+};
+$('#cancel-bulk-delete').onclick = () => selectionDialog.close();
+selectionDialog.oncancel = (event) => { if (deleteBusy) event.preventDefault(); };
+$('#confirm-bulk-delete').onclick = async () => {
+  if (deleteBusy) return;
+  deleteBusy = true;
+  $('#confirm-bulk-delete').disabled = $('#cancel-bulk-delete').disabled = true;
+  let deleted = 0;
+  const total = selectedPhotos.size;
+  let processed = 0;
+  const errors = new Set();
+  try {
+    for (const [id, rev] of selectedPhotos) {
+      $('#selection-confirmation').textContent = 'Procesando ' + (++processed) + ' de ' + total + '…';
+      try {
+        await deletePhoto(id, rev);
+        selectedPhotos.delete(id);
+        ++deleted;
+      } catch (error) {
+        if (error.status === 404) selectedPhotos.delete(id);
+        else if (error.status === 409) {
+          selectedPhotos.delete(id);
+          errors.add('Vuelve a seleccionar las fichas que hayan cambiado.');
+        } else errors.add(error.message);
+      }
+    }
+    if (!selectedPhotos.size && !errors.size) selecting = false;
+    try { await refresh(); } catch { errors.add('Recarga el panel para actualizar la galería.'); }
+    status(deleted + (deleted === 1 ? ' foto borrada.' : ' fotos borradas.') +
+      (total > deleted ? ' ' + (total - deleted) + ' sin borrar.' : '') +
+      (errors.size ? ' ' + [...errors].join(' ') : ''));
+  } finally {
+    selectionDialog.close();
+    deleteBusy = false;
+    $('#confirm-bulk-delete').disabled = $('#cancel-bulk-delete').disabled = false;
+  }
+};
+
+function deletePhoto(id, rev) {
+  return api('photos/' + id + '/delete', { method: 'POST', data: { rev } });
 }
 
 function fill(meta) {
   for (const name of ['date', 'place', 'note', 'lat', 'lon']) form.elements[name].value = meta[name] ?? '';
+  resetPlaceLookup();
+  if (!form.elements.place.value.trim() && !$('#find-place').hidden) findPlace();
+}
+
+function resetPlaceLookup() {
+  ++lookupVersion;
+  $('#place-status').textContent = '';
+  $('#find-place').hidden = !['lat', 'lon'].every((key) => {
+    const field = form.elements[key];
+    return field.value !== '' && field.validity.valid;
+  });
+  $('#find-place').disabled = false;
+}
+
+function nearestLocality(rows, lat, lon) {
+  const radians = Math.PI / 180;
+  const longitudeScale = Math.cos(lat * radians);
+  let distanceSquared = (12 / 111.2) ** 2;
+  let place = '';
+  for (const [candidateLat, candidateLon, name] of rows) {
+    const deltaLat = candidateLat - lat;
+    const deltaLon = (candidateLon - lon) * longitudeScale;
+    const squared = deltaLat ** 2 + deltaLon ** 2;
+    if (squared < distanceSquared) {
+      distanceSquared = squared;
+      place = name;
+    }
+  }
+  return place;
+}
+
+async function findPlace() {
+  const version = ++lookupVersion;
+  const button = $('#find-place');
+  const message = $('#place-status');
+  button.disabled = true;
+  message.textContent = 'Buscando localidad…';
+  const lat = Number(form.elements.lat.value);
+  const lon = Number(form.elements.lon.value);
+  try {
+    const place = await lookupPlace(lat, lon);
+    if (version !== lookupVersion) return;
+    if (place) form.elements.place.value = place;
+    message.textContent = place ? 'Localidad cercana sugerida. Puedes editarla.'
+      : 'No se encontró una localidad cercana. Puedes escribirla a mano.';
+  } catch {
+    localities = null;
+    if (version === lookupVersion) message.textContent = 'No se pudo cargar el catálogo de localidades.';
+  } finally {
+    if (version === lookupVersion) button.disabled = false;
+  }
+}
+
+async function lookupPlace(lat, lon) {
+  localities ??= api('localidades').then((data) => data.trimEnd().split('\n').slice(1)
+    .map((row) => row.split('\t')));
+  try { return nearestLocality(await localities, lat, lon); }
+  catch (error) { localities = null; throw error; }
+}
+
+$('#find-place').onclick = findPlace;
+for (const key of ['place', 'lat', 'lon']) form.elements[key].oninput = resetPlaceLookup;
+
+function confirmDelete(show) {
+  $('#delete-confirmation').hidden = !show;
+  $('#delete').setAttribute('aria-expanded', String(show));
 }
 
 function showDialog(title, url, upload) {
@@ -94,7 +252,9 @@ function showDialog(title, url, upload) {
   preview.src = url;
   $('#preview').replaceChildren(preview);
   $('#delete').hidden = upload;
+  confirmDelete(false);
   $('#skip').hidden = !upload;
+  $('#save-all').hidden = !upload || !files.length;
   $('#file-progress').textContent = upload ? (fileCount - files.length) + ' de ' + fileCount : '';
   photoStatus('');
   if (!dialog.open) dialog.showModal();
@@ -112,41 +272,88 @@ function releasePreview() {
   previewUrl = null;
 }
 
+async function preparePhoto(file) {
+  const { meta } = await processPhoto({ file });
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const scale = Math.min(480 / image.naturalWidth, 254 / image.naturalHeight, 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#141311';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { jpeg } = await processPhoto({ pixels }, [pixels.data.buffer]);
+    return { meta, optimized: new Blob([jpeg], { type: 'image/jpeg' }) };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function nextFile() {
   releasePreview();
   while (files.length) {
     const file = files.shift();
     try {
-      const { meta } = await processPhoto({ file });
-      previewUrl = URL.createObjectURL(file);
-      const image = new Image();
-      image.src = previewUrl;
-      await image.decode();
-      const scale = Math.min(480 / image.naturalWidth, 254 / image.naturalHeight, 1);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const ctx = canvas.getContext('2d', { alpha: false });
-      ctx.fillStyle = '#141311';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const { jpeg } = await processPhoto({ pixels }, [pixels.data.buffer]);
-      releasePreview();
-      const optimized = new Blob([jpeg], { type: 'image/jpeg' });
-      previewUrl = URL.createObjectURL(optimized);
-      current = { optimized };
-      fill(meta);
+      current = await preparePhoto(file);
+      previewUrl = URL.createObjectURL(current.optimized);
+      fill(current.meta);
       showDialog(file.name, previewUrl, true);
       return;
     } catch {
-      releasePreview();
       status('No se pudo abrir «' + file.name + '». Si es HEIC, prueba a exportarla como JPEG.');
     }
   }
   current = null;
   if (dialog.open) dialog.close();
   await refresh();
+}
+
+function uploadPhoto(meta, optimized) {
+  const encoded = new TextEncoder().encode(JSON.stringify(meta));
+  return api('photos', {
+    method: 'POST', body: new Blob([encoded, optimized]),
+    headers: { 'Content-Type': 'application/octet-stream', 'X-Meta-Length': String(encoded.length) },
+  });
+}
+
+async function uploadBatch(meta) {
+  const total = 1 + files.length;
+  let saved = 0, duplicates = 0, failed = 0;
+  const errors = new Set();
+  const upload = async (metadata, optimized) => {
+    try {
+      await uploadPhoto(metadata, optimized);
+      ++saved;
+    } catch (error) {
+      if (error.duplicate) ++duplicates;
+      else { ++failed; errors.add(error.message); }
+    }
+  };
+  photoStatus('Procesando 1 de ' + total + '…');
+  await upload(meta, current.optimized);
+  while (files.length) {
+    photoStatus('Procesando ' + (total - files.length + 1) + ' de ' + total + '…');
+    try {
+      const { meta: nextMeta, optimized } = await preparePhoto(files.shift());
+      if (nextMeta.lat !== null && nextMeta.lon !== null)
+        nextMeta.place = await lookupPlace(nextMeta.lat, nextMeta.lon).catch(() => '');
+      await upload(nextMeta, optimized);
+    } catch {
+      ++failed;
+      errors.add('Algunas imágenes no se pudieron abrir.');
+    }
+  }
+  try { await nextFile(); } catch { errors.add('Recarga el panel para actualizar la galería.'); }
+  status(saved + (saved === 1 ? ' foto guardada.' : ' fotos guardadas.') +
+    (duplicates ? ' Duplicadas omitidas: ' + duplicates + '.' : '') +
+    (failed ? ' Sin guardar: ' + failed + '.' : '') +
+    (errors.size ? ' ' + [...errors].join(' ') : ''));
 }
 
 function metaFields() {
@@ -163,27 +370,36 @@ function metaFields() {
 async function runPhoto(action) {
   if (busy) return;
   busy = true;
-  $('#save').disabled = $('#skip').disabled = $('#delete').disabled = $('#close').disabled = true;
+  const controls = ['save', 'save-all', 'skip', 'delete', 'close', 'cancel-delete', 'confirm-delete'];
+  for (const id of controls) $('#' + id).disabled = true;
   try { await action(); }
   catch (error) { if (dialog.open) photoStatus(error.message); else status(error.message); }
   finally {
     busy = false;
-    $('#save').disabled = $('#skip').disabled = $('#delete').disabled = $('#close').disabled = false;
+    for (const id of controls) $('#' + id).disabled = false;
   }
 }
 
 form.onsubmit = (event) => {
   event.preventDefault();
   runPhoto(async () => {
+    resetPlaceLookup();
     const meta = metaFields();
     if (current.optimized) {
-      const encoded = new TextEncoder().encode(JSON.stringify(meta));
-      await api('photos', {
-        method: 'POST', body: new Blob([encoded, current.optimized]),
-        headers: { 'Content-Type': 'application/octet-stream', 'X-Meta-Length': String(encoded.length) },
-      });
-      status('Foto guardada.');
-      await nextFile();
+      if (event.submitter?.id === 'save-all') {
+        await uploadBatch(meta);
+      } else {
+        let message;
+        try {
+          await uploadPhoto(meta, current.optimized);
+          message = 'Foto guardada.';
+        } catch (error) {
+          if (!error.duplicate) throw error;
+          message = 'Foto duplicada omitida.';
+        }
+        await nextFile();
+        status(message);
+      }
     } else {
       await api('photos/' + current.id, { method: 'POST', data: { ...meta, rev: current.rev } });
       dialog.close();
@@ -193,21 +409,32 @@ form.onsubmit = (event) => {
   });
 };
 
-$('#delete').onclick = () => runPhoto(async () => {
-  if (!confirm('¿Borrar esta foto y su nota de la microSD?')) return;
-  await api('photos/' + current.id, { method: 'DELETE', data: { rev: current.rev } });
+$('#delete').onclick = () => {
+  confirmDelete(true);
+  $('#cancel-delete').focus();
+};
+$('#cancel-delete').onclick = () => {
+  confirmDelete(false);
+  $('#delete').focus();
+};
+$('#confirm-delete').onclick = () => runPhoto(async () => {
+  photoStatus('Borrando foto…');
+  await deletePhoto(current.id, current.rev);
   dialog.close();
-  await refresh();
+  try { await refresh(); }
+  catch { status('Foto borrada. Recarga el panel para actualizar la galería.'); return; }
   status('Foto borrada.');
 });
 $('#clear-gps').onclick = () => {
   for (const key of ['place', 'lat', 'lon']) form.elements[key].value = '';
+  resetPlaceLookup();
 };
 $('#skip').onclick = () => runPhoto(nextFile);
 $('#close').onclick = () => dialog.close();
 dialog.oncancel = (event) => { if (busy) event.preventDefault(); };
-dialog.onclose = () => { files = []; current = null; releasePreview(); };
+dialog.onclose = () => { files = []; current = null; releasePreview(); resetPlaceLookup(); };
 $('#files').onchange = (event) => {
+  if (busy || deleteBusy) { event.target.value = ''; return; }
   files = Array.from(event.target.files);
   fileCount = files.length;
   event.target.value = '';

@@ -1,4 +1,5 @@
 #include "network.h"
+#include "welcome.h"
 #include "calendar.h"
 #include "config.h"
 #include "library.h"
@@ -42,6 +43,10 @@ static nvs_handle_t settings;
 
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
+extern const char welcome_html_start[] asm("_binary_bienvenida_html_start");
+extern const char welcome_html_end[] asm("_binary_bienvenida_html_end");
+extern const char localidades_start[] asm("_binary_localidades_tsv_gz_start");
+extern const char localidades_end[] asm("_binary_localidades_tsv_gz_end");
 
 void network_address(char *buffer, size_t size)
 {
@@ -49,6 +54,25 @@ void network_address(char *buffer, size_t size)
     if (ip.addr) snprintf(buffer,size,IPSTR,IP2STR(&ip));
     else if (atomic_load(&access_point)) snprintf(buffer,size,"%s",AP_IP);
     else snprintf(buffer,size,"%s","Sin red");
+}
+
+panel_connection_t network_panel_connection(char ip[16], char ssid[33])
+{
+    esp_ip4_addr_t address = {.addr = atomic_load(&lan_ip)};
+    ip[0] = ssid[0] = '\0';
+    if (address.addr) {
+        wifi_ap_record_t ap;
+        if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK)
+            snprintf(ssid, 33, "%.32s", (const char *)ap.ssid);
+        snprintf(ip, 16, IPSTR, IP2STR(&address));
+        return PANEL_LAN;
+    }
+    if (atomic_load(&access_point)) {
+        snprintf(ip, 16, "%s", AP_IP);
+        snprintf(ssid, 33, "%s", AP_NAME);
+        return PANEL_HOTSPOT;
+    }
+    return PANEL_OFFLINE;
 }
 
 void network_setup(void)
@@ -107,6 +131,9 @@ static esp_err_t lib_reply(httpd_req_t *req, lib_result_t result)
     case LIB_MISSING: return reply(req,"404 Not Found","La foto ya no existe");
     case LIB_CONFLICT: return reply(req,"409 Conflict","La ficha cambió. Vuelve a abrirla antes de guardar");
     case LIB_FULL: return reply(req,"507 Insufficient Storage","Biblioteca llena");
+    case LIB_DUPLICATE:
+        httpd_resp_set_hdr(req,"X-Photo-Duplicate","1");
+        return reply(req,"409 Conflict","Esta foto ya está en la galería");
     default: return reply(req,"503 Service Unavailable","No se pudo escribir en la microSD");
     }
 }
@@ -156,6 +183,7 @@ static esp_err_t status(httpd_req_t *req)
     cJSON_AddNumberToObject(obj,"age",date_age(PROFILE_BIRTH,date_today()));
     cJSON_AddNumberToObject(obj,"count",library_count());
     cJSON_AddBoolToObject(obj,"sd",library_ready());
+    cJSON_AddBoolToObject(obj,"loading",library_loading());
     cJSON_AddBoolToObject(obj,"ap",atomic_load(&access_point));
     cJSON_AddNumberToObject(obj,"wifiState",atomic_load(&wifi_state));
     cJSON_AddNumberToObject(obj,"wifiReason",atomic_load(&wifi_reason));
@@ -265,7 +293,9 @@ static esp_err_t photo(httpd_req_t *req, const char *path)
     text[16] = 0;
     if (!photo_id(text,&id)) return lib_reply(req,LIB_MISSING);
     if (req->method == HTTP_GET && !strcmp(path+16,"/image")) return jpeg(req,id);
-    if (path[16]) return lib_reply(req,LIB_MISSING);
+    bool deleting = req->method == HTTP_DELETE && !path[16];
+    if (req->method == HTTP_POST && !strcmp(path+16,"/delete")) deleting = true;
+    if (path[16] && !deleting) return lib_reply(req,LIB_MISSING);
     if (req->method == HTTP_GET) {
         cJSON *obj = library_read(id);
         return obj ? json_reply(req,obj) : lib_reply(req,LIB_MISSING);
@@ -275,8 +305,8 @@ static esp_err_t photo(httpd_req_t *req, const char *path)
     lib_result_t result = LIB_INVALID;
     if (cJSON_IsNumber(rev) && rev->valuedouble >= 1 && rev->valuedouble <= UINT32_MAX &&
         floor(rev->valuedouble) == rev->valuedouble) {
-        if (req->method == HTTP_POST) result = library_edit(id,(uint32_t)rev->valuedouble,doc);
-        else if (req->method == HTTP_DELETE) result = library_delete(id,(uint32_t)rev->valuedouble);
+        if (deleting) result = library_delete(id,(uint32_t)rev->valuedouble);
+        else if (req->method == HTTP_POST) result = library_edit(id,(uint32_t)rev->valuedouble,doc);
     }
     cJSON_Delete(doc);
     return lib_reply(req,result);
@@ -313,6 +343,27 @@ static esp_err_t wifi(httpd_req_t *req)
     return result;
 }
 
+static esp_err_t welcome_api(httpd_req_t *req)
+{
+    bool pending;
+    esp_err_t error;
+    if (req->method == HTTP_GET) {
+        error = welcome_pending(&pending);
+    } else {
+        cJSON *doc = read_json(req, req->content_len);
+        const cJSON *value = cJSON_GetObjectItemCaseSensitive(doc, "pending");
+        bool valid = cJSON_IsBool(value);
+        pending = cJSON_IsTrue(value);
+        cJSON_Delete(doc);
+        if (!valid) return reply(req,"400 Bad Request","Indica si quieres activar la bienvenida");
+        error = welcome_schedule(pending);
+    }
+    if (error != ESP_OK) return reply(req,"500 Internal Server Error","No se pudo acceder a la activación");
+    cJSON *obj = cJSON_CreateObject();
+    if (obj) cJSON_AddBoolToObject(obj, "pending", pending);
+    return json_reply(req,obj);
+}
+
 static esp_err_t route(httpd_req_t *req)
 {
     char host[64], ip[32], setup_host[32], lan_host[32];
@@ -335,12 +386,23 @@ static esp_err_t route(httpd_req_t *req)
     const char *uri = req->uri;
     if (req->method == HTTP_GET && !strncmp(uri,"/api/",5)) {
         if (!strcmp(uri,"/api/status")) return status(req);
+        if (!strcmp(uri,"/api/bienvenida")) return welcome_api(req);
         if (!strcmp(uri,"/api/profile")) return profile(req);
+        if (!strcmp(uri,"/api/localidades")) {
+            httpd_resp_set_type(req,"text/plain; charset=utf-8");
+            httpd_resp_set_hdr(req,"Content-Encoding","gzip");
+            httpd_resp_set_hdr(req,"Cache-Control","public, max-age=3600");
+            return httpd_resp_send(req,localidades_start,localidades_end-localidades_start);
+        }
         if (!strcmp(uri,"/api/photos") || !strncmp(uri,"/api/photos?",12)) return list(req);
         if (!strncmp(uri,"/api/photos/",12)) return photo(req,uri+12);
         return reply(req,"404 Not Found","Ruta desconocida");
     }
     if (req->method == HTTP_GET) {
+        if (!strcmp(uri,"/bienvenida")) {
+            httpd_resp_set_type(req,"text/html; charset=utf-8");
+            return httpd_resp_send(req,welcome_html_start,welcome_html_end-welcome_html_start);
+        }
         if (strcmp(uri,"/")) {
             if (!setup) return reply(req,"404 Not Found","Ruta desconocida");
             httpd_resp_set_hdr(req,"Location","http://" AP_IP "/");
@@ -354,6 +416,7 @@ static esp_err_t route(httpd_req_t *req)
     if (httpd_req_get_hdr_value_str(req,"X-Panel",mutation,sizeof(mutation)) != ESP_OK || strcmp(mutation,"1"))
         return reply(req,"403 Forbidden","Solicitud no válida");
     if (req->method == HTTP_POST && !strcmp(uri,"/api/profile")) return profile(req);
+    if (req->method == HTTP_POST && !strcmp(uri,"/api/bienvenida")) return welcome_api(req);
     if (req->method == HTTP_POST && !strcmp(uri,"/api/photos")) return upload(req);
     if (req->method == HTTP_POST && !strcmp(uri,"/api/wifi")) return wifi(req);
     if (req->method == HTTP_POST && !strcmp(uri,"/api/time")) {
@@ -374,11 +437,17 @@ static void start_http(void)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.lru_purge_enable = true;
+    config.max_open_sockets = 12;
+    config.backlog_conn = 12;
     config.stack_size = 12288;
     config.recv_wait_timeout = 3;
     config.send_wait_timeout = 3;
     httpd_handle_t server;
-    if (httpd_start(&server,&config) != ESP_OK) return;
+    esp_err_t error = httpd_start(&server,&config);
+    if (error != ESP_OK) {
+        ESP_LOGE("panel", "No se pudo iniciar el servidor HTTP: %s", esp_err_to_name(error));
+        return;
+    }
     httpd_method_t methods[] = {HTTP_GET,HTTP_POST,HTTP_DELETE};
     for (unsigned i=0;i<sizeof(methods)/sizeof(*methods);++i) {
         httpd_uri_t handler = {.uri = "/*",.method = methods[i],.handler = route};

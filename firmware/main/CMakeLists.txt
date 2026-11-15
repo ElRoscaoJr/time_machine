@@ -1,10 +1,10 @@
 idf_component_register(
-    SRCS "main.c" "board.c" "calendar.c" "library.c" "gallery.c" "network.c" "font_es_14.c"
+    SRCS "main.c" "board.c" "calendar.c" "library.c" "locality.c" "gallery.c" "network.c" "welcome.c" "font_es_14.c"
     INCLUDE_DIRS "."
     REQUIRES esp_lcd esp_driver_gpio esp_driver_i2c esp_driver_spi esp_driver_sdspi
              esp_driver_ledc fatfs json esp_wifi esp_event esp_netif nvs_flash
-             esp_http_server esp_timer lwip
-    EMBED_FILES "../web/dist/index.html"
+             esp_http_server esp_timer esp_rom lwip
+    EMBED_FILES "../web/dist/index.html" "../web/dist/localidades.tsv.gz" "../web/dist/bienvenida.html"
 )
 
 if(EXISTS "${COMPONENT_DIR}/profile-avatar.rgb565")

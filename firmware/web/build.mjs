@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 
 const worker = await build({ entryPoints: ['photo-worker.js'], bundle: true, write: false, minify: true, format: "iife", define: { "Buffer.from": "Uint8Array.from" } });
 const script = await build({
@@ -13,6 +14,9 @@ const avatar = await readFile('profile-avatar.jpg').catch(error => {
   return null;
 });
 await mkdir('dist', { recursive: true });
+const welcome = await readFile('bienvenida.html', 'utf8');
+await writeFile('dist/bienvenida.html', welcome.replace('<!-- styles -->', () => '<style>' + css + '</style>'));
+await writeFile('dist/localidades.tsv.gz', gzipSync(await readFile('localidades-es.tsv')));
 await writeFile('dist/index.html', html
   .replace('<!-- profile-avatar -->', avatar
     ? `<img class="profile-avatar" src="data:image/jpeg;base64,${avatar.toString('base64')}" alt="">`

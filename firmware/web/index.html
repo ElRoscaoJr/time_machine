@@ -3,15 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Daniela’s Time Machine</title>
+<title>Daniela's Time Machine</title>
 <!-- styles -->
 </head>
 <body>
-<header><a class="brand" href="/"><!-- profile-avatar -->Daniela’s Time Machine</a><span id="ip"></span></header>
+<header><a class="brand" href="/"><!-- profile-avatar -->Daniela's Time Machine</a><span id="ip"></span></header>
 <main>
   <section id="panel">
     <div class="intro"><div><h1 id="title">Biblioteca</h1><p id="summary"></p></div>
-    <label class="button" id="upload-control">Añadir fotos<input id="files" type="file" accept="image/*,.heic,.heif" multiple></label></div>
+    <div class="actions"><button id="select-photos" type="button" class="secondary" hidden>Seleccionar fotos</button>
+    <label class="button" id="upload-control">Añadir fotos<input id="files" type="file" accept="image/*,.heic,.heif" multiple></label></div></div>
+    <div id="selection" class="actions" hidden>
+      <span id="selection-count" role="status"></span>
+      <button type="button" id="select-page" class="secondary">Seleccionar página</button>
+      <button type="button" id="delete-selected" class="danger">Borrar selección</button>
+      <button type="button" id="cancel-selection" class="secondary">Salir de selección</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
     <p id="empty" hidden>Añade fotos para empezar la línea del tiempo.</p>
     <div id="photos" class="photos"></div>
     <nav id="pages" aria-label="Páginas de fotos">
@@ -33,23 +41,35 @@
       <p id="wifi-status" role="status"></p>
     </details>
   </section>
-  <p id="status" role="status" aria-live="polite"></p>
 </main>
+<dialog id="selection-dialog" aria-labelledby="selection-title">
+  <h2 id="selection-title">Borrar selección</h2>
+  <p id="selection-confirmation"></p>
+  <div class="actions"><button type="button" id="cancel-bulk-delete" class="secondary">Cancelar</button><button type="button" id="confirm-bulk-delete" class="danger">Sí, borrar selección</button></div>
+</dialog>
 <dialog id="photo-dialog">
   <form id="photo-form">
-    <div class="intro"><h2 id="dialog-title">Foto</h2><button type="button" id="close" class="secondary" aria-label="Cerrar">Cerrar</button></div>
+    <div class="intro"><h2 id="dialog-title">Foto</h2><div class="actions"><button type="button" id="delete" class="danger" aria-controls="delete-confirmation" aria-expanded="false">Borrar foto</button><button type="button" id="close" class="secondary">Cerrar</button></div></div>
     <div id="preview"></div>
     <p id="file-progress"></p>
+    <div id="delete-confirmation" class="confirmation" hidden>
+      <p>¿Borrar esta foto y su nota de la microSD?</p>
+      <div class="actions"><button type="button" id="cancel-delete" class="secondary">Cancelar</button><button type="button" id="confirm-delete" class="danger">Sí, borrar foto</button></div>
+    </div>
+    <p id="photo-status" role="status" aria-live="polite"></p>
     <label>Fecha de la foto<input name="date" type="date" max="9999-12-31"></label>
     <label>Lugar<input name="place" maxlength="160" placeholder="Nombre del lugar"></label>
     <div class="pair">
       <label>Latitud<input name="lat" type="number" min="-90" max="90" step="any"></label>
       <label>Longitud<input name="lon" type="number" min="-180" max="180" step="any"></label>
     </div>
-    <button id="clear-gps" type="button" class="secondary">Quitar ubicación</button>
+    <div class="actions">
+      <button id="find-place" type="button" class="secondary" hidden>Buscar localidad cercana</button>
+      <button id="clear-gps" type="button" class="secondary">Quitar ubicación</button>
+    </div>
+    <p id="place-status" role="status"></p>
     <label>Nota<textarea name="note" rows="5" maxlength="4096"></textarea></label>
-    <p id="photo-status" role="status" aria-live="polite"></p>
-    <div class="actions"><button id="save">Guardar</button><button type="button" id="skip" class="secondary">Omitir</button><button type="button" id="delete" class="danger">Borrar foto</button></div>
+    <div class="actions"><button id="save">Guardar</button><button id="save-all" hidden>Guardar todas</button><button type="button" id="skip" class="secondary">Omitir</button></div>
   </form>
 </dialog>
 <!-- scripts -->

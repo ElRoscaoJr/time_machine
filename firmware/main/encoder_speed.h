@@ -12,7 +12,7 @@ typedef struct {
  * part accumulates across steps so acceleration builds without hard jumps. */
 static inline int encoder_photo_step(encoder_speed_t *speed, int direction, int64_t now_ms)
 {
-    enum { ONE_PHOTO = 256, SLOW_MS = 100, FAST_MS = 16, MAX_STEP = 16 };
+    enum { ONE_PHOTO = 256, SLOW_MS = 45, FAST_MS = 12, MAX_STEP = 4 };
     int64_t interval = now_ms - speed->last_step_ms;
     int previous_direction = speed->direction;
     speed->direction = direction;

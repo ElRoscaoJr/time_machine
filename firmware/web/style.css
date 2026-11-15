@@ -26,6 +26,9 @@ button:disabled{opacity:.45;cursor:default}
 .tile{background:var(--surface);color:var(--paper);border-color:var(--line);padding:0;overflow:hidden;text-align:left;font-weight:400}
 .tile img{display:block;aspect-ratio:3/2;width:100%;object-fit:contain;background:#0f0e0d}
 .tile span{display:block;padding:8px 12px}
+.tile[aria-pressed="true"]{border-color:var(--focus);outline:2px solid var(--brass)}
+.tile[aria-pressed="true"] span{background:var(--brass);color:var(--ground)}
+#selection,#selection-dialog p{margin-top:12px;margin-bottom:12px}
 form{display:grid;gap:14px}
 details{max-width:530px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px}
 details{margin-top:32px}
@@ -40,6 +43,9 @@ dialog::backdrop{background:#080705c9}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 #empty,#status{margin-top:16px}
 #status,#photo-status{color:var(--brass)}
+#photo-status:empty,#place-status:empty,#file-progress:empty{display:none}
+.confirmation{padding:12px;border:1px solid var(--line);border-radius:5px}
+.confirmation p{margin-bottom:8px}
 
 [aria-disabled="true"]{opacity:.5;pointer-events:none}
 #wifi-status a{color:var(--brass)}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bienvenida · Entretiempo</title>
+<!-- styles -->
+</head>
+<body>
+<header><a class="brand" href="/">Entretiempo</a></header>
+<main>
+  <h1>Bienvenida de Daniela</h1>
+  <p id="summary">Prepara la bienvenida para el próximo encendido. Seguirá apareciendo al encender hasta que termine y se abra la galería.</p>
+  <p id="status" role="status">Consultando la activación…</p>
+  <div class="actions">
+    <button id="activate" disabled>Activar para el próximo reinicio</button>
+    <button id="cancel" class="secondary" hidden disabled>Cancelar activación</button>
+  </div>
+</main>
+<script>
+const status = document.querySelector('#status');
+const activate = document.querySelector('#activate');
+const cancel = document.querySelector('#cancel');
+
+async function update(pending) {
+  activate.disabled = cancel.disabled = true;
+  try {
+    const options = { cache: 'no-store' };
+    if (pending !== undefined) {
+      options.method = 'POST';
+      options.headers = { 'Content-Type': 'application/json', 'X-Panel': '1' };
+      options.body = JSON.stringify({ pending });
+    }
+    const response = await fetch('/api/bienvenida', options);
+    if (!response.ok) throw new Error(await response.text());
+    const state = await response.json();
+    activate.hidden = state.pending;
+    cancel.hidden = !state.pending;
+    status.textContent = state.pending ? 'Activada hasta completar la bienvenida.' : 'Sin activación pendiente.';
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    activate.disabled = cancel.disabled = false;
+  }
+}
+
+activate.onclick = () => update(true);
+cancel.onclick = () => update(false);
+update();
+</script>
+</body>
+</html>

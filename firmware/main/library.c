@@ -1,4 +1,5 @@
 #include "library.h"
+#include "locality.h"
 #include "calendar.h"
 #include "esp_heap_caps.h"
 #include "esp_random.h"
@@ -20,6 +21,7 @@ static photo_t *photos;
 static size_t count;
 static uint32_t generation;
 static atomic_bool ready;
+static atomic_bool loading = true, indexed;
 
 void photo_path(uint64_t id, const char *ext, char out[64])
 {
@@ -93,9 +95,9 @@ static cJSON *read_meta(uint64_t id, const char *ext, photo_t *photo)
         cJSON_Delete(obj);
         return NULL;
     }
-    if (photo) *photo = (photo_t){id,
-        date_parse(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(obj,"date"))),
-        (uint32_t)rev->valuedouble};
+    if (photo) *photo = (photo_t){.id = id,
+        .date = date_parse(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(obj,"date"))),
+        .rev = (uint32_t)rev->valuedouble};
     return obj;
 }
 
@@ -112,13 +114,26 @@ static void cleanup_deleted(uint64_t id)
     unlink(deleted);
 }
 
-bool library_init(void)
+static void publish_index(size_t scanned)
+{
+    xSemaphoreTake(lock, portMAX_DELAY);
+    xSemaphoreTake(index_lock, portMAX_DELAY);
+    qsort(photos, scanned, sizeof(*photos), compare);
+    count = scanned;
+    ++generation;
+    xSemaphoreGive(index_lock);
+    xSemaphoreGive(lock);
+    atomic_store(&indexed, true);
+}
+
+static bool scan_card(void)
 {
     lock = xSemaphoreCreateMutex();
     index_lock = xSemaphoreCreateMutex();
     if (!lock || !index_lock) return false;
     photos = heap_caps_malloc(PHOTO_LIMIT * sizeof(*photos), MALLOC_CAP_SPIRAM);
     if (!photos || (mkdir(LIB_ROOT, 0775) && errno != EEXIST)) return false;
+    size_t scanned = 0;
     for (unsigned shard = 0; shard < 64; ++shard) {
         char dir[32];
         snprintf(dir, sizeof(dir), LIB_ROOT "/%02x", shard);
@@ -143,7 +158,7 @@ bool library_init(void)
             photo_path(id, "json", json);
             photo_path(id, "bak", bak);
             photo_path(id, "del", deleted);
-            if (!access(deleted, F_OK) || count == PHOTO_LIMIT) continue;
+            if (!access(deleted, F_OK) || scanned == PHOTO_LIMIT) continue;
             photo_t photo;
             cJSON *meta = read_meta(id, "json", &photo);
             if (!meta) {
@@ -153,25 +168,39 @@ bool library_init(void)
                     rename(bak, json);
                 }
             }
-            if (meta) photos[count++] = photo;
-            if ((count & 31) == 0) vTaskDelay(1);
+            if (meta) {
+                char jpg[64];
+                struct stat info;
+                photo_path(id, "jpg", jpg);
+                if (!stat(jpg, &info)) photo.jpeg_size = info.st_size;
+                photos[scanned++] = photo;
+                if (scanned == 1 || scanned % 512 == 0) publish_index(scanned);
+            }
+            if ((scanned & 31) == 0) vTaskDelay(1);
             cJSON_Delete(meta);
         }
         closedir(d);
     }
-    qsort(photos, count, sizeof(*photos), compare);
-    generation = 1;
-    atomic_store(&ready,true);
+    publish_index(scanned);
     return true;
 }
 
+bool library_init(bool mounted)
+{
+    bool ok = mounted && scan_card();
+    atomic_store(&ready, ok);
+    atomic_store(&loading, false);
+    return ok;
+}
+
 bool library_ready(void) { return atomic_load(&ready); }
+bool library_loading(void) { return atomic_load(&loading); }
 
 static bool take(void) { return atomic_load(&ready) && xSemaphoreTake(lock, portMAX_DELAY) == pdTRUE; }
 
 static bool take_index(void)
 {
-    return library_ready() && xSemaphoreTake(index_lock, portMAX_DELAY) == pdTRUE;
+    return atomic_load(&indexed) && xSemaphoreTake(index_lock, portMAX_DELAY) == pdTRUE;
 }
 
 size_t library_count(void)
@@ -249,15 +278,32 @@ size_t library_nearest(int ordinal)
     return lo;
 }
 
-cJSON *library_read(uint64_t id)
+cJSON *library_read_original(uint64_t id)
 {
-    if (!take()) return NULL;
+    if (!atomic_load(&indexed) || xSemaphoreTake(lock, portMAX_DELAY) != pdTRUE) return NULL;
     cJSON *obj = NULL;
     if (find(id) < count) {
         obj = read_meta(id, "json", NULL);
         if (!obj) obj = read_meta(id, "bak", NULL);
     }
     xSemaphoreGive(lock);
+    return obj;
+}
+
+cJSON *library_read(uint64_t id)
+{
+    cJSON *obj = library_read_original(id);
+    const char *place = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(obj, "place"));
+    if (obj && (!place || !*place)) {
+        const cJSON *lat = cJSON_GetObjectItemCaseSensitive(obj, "lat");
+        const cJSON *lon = cJSON_GetObjectItemCaseSensitive(obj, "lon");
+        const char *name = cJSON_IsNumber(lat) && cJSON_IsNumber(lon)
+            ? locality_nearest(lat->valuedouble, lon->valuedouble) : NULL;
+        if (name) {
+            cJSON_DeleteItemFromObjectCaseSensitive(obj, "place");
+            cJSON_AddStringToObject(obj, "place", name);
+        }
+    }
     return obj;
 }
 
@@ -353,9 +399,42 @@ static int meta_date(cJSON *meta)
     return date_parse(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(meta, "date")));
 }
 
+// Called under the library lock so two uploads cannot both publish the same JPEG.
+static lib_result_t check_duplicate(const char *staged, size_t size)
+{
+    FILE *incoming = fopen(staged, "rb");
+    if (!incoming) return LIB_IO;
+    lib_result_t result = LIB_OK;
+    for (size_t i = 0; i < count && result == LIB_OK; ++i) {
+        if (photos[i].jpeg_size && photos[i].jpeg_size != size) continue;
+        char path[64];
+        photo_path(photos[i].id, "jpg", path);
+        FILE *existing = fopen(path, "rb");
+        if (!existing) { result = LIB_IO; break; }
+        rewind(incoming);
+        unsigned char left[512], right[512];
+        size_t remaining = size;
+        while (remaining) {
+            size_t n = remaining < sizeof(left) ? remaining : sizeof(left);
+            if (fread(left, 1, n, incoming) != n) { result = LIB_IO; break; }
+            if (fread(right, 1, n, existing) != n || memcmp(left, right, n)) break;
+            remaining -= n;
+        }
+        if (ferror(existing)) result = LIB_IO;
+        else if (!remaining && fgetc(existing) == EOF)
+            result = ferror(existing) ? LIB_IO : LIB_DUPLICATE;
+        fclose(existing);
+        taskYIELD();
+    }
+    fclose(incoming);
+    return result;
+}
+
 lib_result_t library_create(cJSON *meta, const char *staged, uint64_t *id)
 {
     if (!valid_meta(meta)) return LIB_INVALID;
+    struct stat info;
+    if (stat(staged, &info)) return LIB_IO;
     unsigned w, h;
     void *pixels = heap_caps_malloc(PIXELS * 2, MALLOC_CAP_SPIRAM);
     if (!pixels) return LIB_IO;
@@ -363,8 +442,9 @@ lib_result_t library_create(cJSON *meta, const char *staged, uint64_t *id)
     free(pixels);
     if (!decoded) return LIB_INVALID;
     if (!take()) return LIB_IO;
-    lib_result_t result = LIB_FULL;
-    if (count < PHOTO_LIMIT) {
+    lib_result_t result = check_duplicate(staged, info.st_size);
+    if (result == LIB_OK && count == PHOTO_LIMIT) result = LIB_FULL;
+    if (result == LIB_OK) {
         char path[64], meta_path[64];
         do {
             esp_fill_random(id, sizeof(*id));
@@ -375,7 +455,7 @@ lib_result_t library_create(cJSON *meta, const char *staged, uint64_t *id)
         if (write_meta(*id, 1, meta)) {
             if (!rename(staged, path)) {
                 xSemaphoreTake(index_lock, portMAX_DELAY);
-                photo_t added = {*id, meta_date(meta), 1};
+                photo_t added = {.id = *id, .date = meta_date(meta), .rev = 1, .jpeg_size = info.st_size};
                 size_t lo = 0, hi = count;
                 while (lo < hi) {
                     size_t mid = (lo + hi) / 2;
@@ -440,11 +520,12 @@ lib_result_t library_delete(uint64_t id, uint32_t rev)
     if (pos < count) {
         result = LIB_CONFLICT;
         if (photos[pos].rev == rev) {
-            char json[64], deleted[64];
+            char json[64], bak[64], deleted[64];
             photo_path(id, "json", json);
+            photo_path(id, "bak", bak);
             photo_path(id, "del", deleted);
             result = LIB_IO;
-            if (!rename(json, deleted)) {
+            if (!rename(json, deleted) || (errno == ENOENT && !rename(bak, deleted))) {
                 xSemaphoreTake(index_lock, portMAX_DELAY);
                 memmove(photos + pos, photos + pos + 1, (count - pos - 1)*sizeof(*photos));
                 --count;
