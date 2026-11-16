@@ -1,4 +1,4 @@
-# Daniela’s Time Machine · caja de madera
+# Entretiempo · caja de madera
 
 Frontal centrado para la **WT32-SC01 Plus con su marco negro original**, y manivela independiente para montar el EC11 en un lateral de la caja. El frontal tiene el nombre grabado en grande, un borde perimetral, un marco alrededor de la pantalla, marcas inspiradas en una esfera de reloj y un bisel exterior redondeado.
 

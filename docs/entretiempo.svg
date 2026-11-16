@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+<title id="title">Entretiempo: un álbum para recorrer recuerdos</title><desc id="desc">Ilustración conceptual de una pantalla con una foto, línea temporal y rueda de navegación.</desc>
+<rect width="1200" height="500" rx="24" fill="#161916"/>
+<circle cx="1030" cy="-50" r="340" fill="#202a23"/>
+<text x="76" y="132" fill="#e9ddc6" font-family="Georgia,serif" font-size="58">Entretiempo</text>
+<text x="78" y="184" fill="#cfb988" font-family="Arial,sans-serif" font-size="22">UNA MÁQUINA DEL TIEMPO</text>
+<text x="78" y="240" fill="#e9ddc6" font-family="Arial,sans-serif" font-size="22">Recuerdos que se pueden tocar.</text>
+<rect x="624" y="64" width="486" height="356" rx="22" fill="#846348"/><rect x="643" y="83" width="386" height="286" rx="10" fill="#101412"/>
+<rect x="655" y="95" width="362" height="212" rx="4" fill="#728b7a"/><path d="M655 262L747 178 805 232 863 163 1017 278V307H655Z" fill="#3c5d50"/><circle cx="935" cy="142" r="25" fill="#eac995"/>
+<rect x="667" y="107" width="119" height="26" rx="6" fill="#202721" fill-opacity=".85"/><text x="679" y="125" fill="#f1e8d4" font-family="Arial,sans-serif" font-size="13">Un lugar especial</text>
+<line x1="683" y1="340" x2="988" y2="340" stroke="#9f947f" stroke-width="3"/><circle cx="835" cy="340" r="7" fill="#e2b367"/>
+<circle cx="1067" cy="218" r="25" fill="#292620" stroke="#d6a75d" stroke-width="5"/><circle cx="1067" cy="218" r="8" fill="#d6a75d"/>
+<text x="78" y="426" fill="#bfb09a" font-family="Arial,sans-serif" font-size="16">ESP32-S3  ·  PANTALLA TÁCTIL  ·  ENCODER  ·  MICROSD</text>
+</svg>

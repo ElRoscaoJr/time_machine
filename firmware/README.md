@@ -21,14 +21,14 @@ Para el primer arranque, extrae `build/demo-microsd.zip` en la raíz de la micro
 Desde la raíz del repositorio, con [ESP-IDF 5.5.6](https://github.com/espressif/esp-idf/releases/tag/v5.5.6) activo y Node.js instalado:
 
 ```sh
-python3 tools/provision.py --name Daniela --birth 2005-11-14
+python3 tools/provision.py --name Alex --birth 2000-01-01
 npm --prefix firmware/web ci
 npm --prefix firmware/web run build
 idf.py -C firmware reconfigure build
 idf.py -C firmware -p /dev/ttyACM0 flash monitor
 ```
 
-Introduce la contraseña de configuración acordada cuando la pida el script. El panel abre directamente desde la red local. El script escribe un archivo local ignorado por Git. Los binarios personalizados incorporan el perfil y estas credenciales.
+Elige tus propias contraseñas cuando las pida el script. El panel abre directamente desde la red local. El script escribe un archivo local ignorado por Git. Los binarios personalizados incorporan el perfil y estas credenciales.
 
 Conecta un cable USB-C de datos y usa el puerto que aparezca en el equipo. Si necesitas entrar en modo descarga, mantén BOOT, pulsa RESET y suelta BOOT. Si el USB de la unidad no expone un puerto de datos, usa la interfaz de depuración indicada en la ficha con el adaptador del fabricante o un adaptador UART TTL de **3,3 V**, TX y RX cruzados y GND común. Con un adaptador UART, selecciona el puerto correspondiente, por ejemplo `/dev/ttyUSB0`. [Guía de conexión serie de Espressif](https://docs.espressif.com/projects/esp-idf/en/v5.5.6/esp32s3/get-started/establish-serial-connection.html)
 
@@ -36,7 +36,7 @@ Conecta un cable USB-C de datos y usa el puerto que aparezca en el equipo. Si ne
 
 1. Conecta el móvil a `time_machine` y abre el aviso de la red. Si el sistema no abre el portal, visita `http://192.168.4.1`.
 2. Desde el panel puedes añadir fotos con la microSD montada, cambiar el avatar y configurar dos redes de 2,4 GHz. Usa «Solo guardar» para registrar una red que esté fuera de alcance. El aparato prueba las redes guardadas al arrancar y vuelve a su red de configuración si falla la conexión. Tras conectarse, vuelve a poner el móvil en la misma red doméstica y abre por HTTP la dirección IP que aparece en Entretiempo.
-3. Si el equipo pierde el acceso a la red, esperará un intento de reconexión antes de levantar su red de configuración. Pulsa «Conectar» en la pantalla para saber a qué red conectarte y abrir el panel con el código QR. Si la máquina está sin red, puedes activar `time_machine` desde ese menú.
+3. Si el equipo pierde el acceso a la red, esperará un intento de reconexión antes de levantar su red de configuración. Pulsa el botón de conexión en la pantalla para saber a qué red conectarte y abrir el panel con el código QR. Si la máquina está sin red, puedes activar `time_machine` desde ese menú.
 
 El panel se sirve por HTTP en la red local. La lectura de EXIF y la compresión se hacen en el navegador, con archivos de uno en uno. Si el navegador no puede decodificar un HEIC, expórtalo a JPEG para subirlo. La pantalla y el panel muestran automáticamente una localidad cercana de España para las fotos con GPS y sin nombre guardado, incluidas las que ya están en la microSD. La pantalla muestra las coordenadas junto al nombre del lugar. Si el catálogo no encuentra una localidad a menos de 12 km y la ficha no tiene un nombre guardado, muestra solo las coordenadas. Puedes editar el nombre en la ficha. El reloj se sincroniza por NTP en la red doméstica y toma la hora del navegador si arrancó sin fecha válida.
 
@@ -46,7 +46,7 @@ En «Añadir fotos» puedes elegir varios archivos. «Guardar» guarda la ficha 
 
 ## Activar la bienvenida
 
-Añade `/bienvenida` a la dirección del panel y pulsa «Activar para el próximo reinicio». La pantalla mostrará la dedicatoria de Daniela al encenderse. Puedes avanzar con «Siguiente» o con el pulsador de la ruedita. La activación se desmarca al pulsar «Ver mis fotos» al final. Si apagas el aparato antes, la dedicatoria empieza de nuevo al encenderlo. También puedes cancelar la activación desde el panel.
+Añade `/bienvenida` a la dirección del panel y pulsa «Activar para el próximo reinicio». La pantalla mostrará la bienvenida configurada en el firmware al encenderse. Puedes avanzar con «Siguiente» o con el pulsador de la ruedita. La activación se desmarca al pulsar «Ver mis fotos» al final. Si apagas el aparato antes, la dedicatoria empieza de nuevo al encenderlo. También puedes cancelar la activación desde el panel.
 
 ## Cargar y editar la microSD
 
@@ -63,7 +63,7 @@ Cada foto ocupa un JPEG y un JSON con el mismo nombre en `entretiempo/00` a `ent
 
 ## Navegar por las fotos
 
-Al girar despacio, cada paso de la ruedita avanza una sola foto, que gira como una tarjeta sobre un eje horizontal. En galerías de más de 12 fotos, el giro rápido acelera progresivamente hasta cuatro fotos por paso. En galerías más pequeñas, cada paso avanza una foto. Tras una pausa o al invertir el giro, el primer paso vuelve a ser de una sola foto. La transición dura unos 145 ms y cambia la imagen cuando se ve de canto. El punto ámbar se desliza por la escala, con una marca por año y rótulos cada cinco años. Durante un giro rápido, el cursor sigue la selección y la foto final se muestra al frenar.
+Al girar despacio, cada paso de la ruedita avanza una sola foto, con una transición animada. En galerías de más de 12 fotos, el giro rápido acelera progresivamente hasta cuatro fotos por paso. En galerías más pequeñas, cada paso avanza una foto. Tras una pausa o al invertir el giro, el primer paso vuelve a ser de una sola foto. El punto ámbar se desliza por la escala, con una marca por año y rótulos cada cinco años. Durante un giro rápido, el cursor sigue la selección y la foto final se muestra al frenar.
 
 Si la foto tiene nota, la pantalla muestra una línea con su inicio. Toca la foto o pulsa la ruedita para abrir la nota completa. Arrastra el texto hacia arriba o hacia abajo para leer notas largas. Pulsa «Escribir» o «Editar» en la pantalla para abrir el teclado. Usa «ABC» para las mayúsculas y «1#» para los números y símbolos.
 

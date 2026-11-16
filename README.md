@@ -1,70 +1,92 @@
-# Entretiempo V2.1
+# Entretiempo
 
-Carcasa de sobremesa para la **Wireless-Tag WT32-SC01 Plus** con su marco negro de fábrica. Esta revisión permite imprimir y probar el frontal con la pantalla y el encoder antes de montar el cuerpo. La tapa trasera abre con cuatro tornillos y extrae la bandeja de batería.
+### Una máquina del tiempo para tus recuerdos
 
-![Vista del conjunto](vistas/01-conjunto.png)
+Un álbum de fotos físico y conectado: gira una ruedita para recorrer los años, toca una imagen para leer su historia y gestiona la colección desde el móvil. Entretiempo combina firmware para ESP32-S3, una interfaz táctil, un panel web local y piezas diseñadas para fabricación digital.
 
-## Orden de impresión y prueba
+![Ilustración conceptual de Entretiempo](docs/entretiempo.svg)
 
-1. **Imprime las dos plantillas `07` y `08` primero**, con el mismo material y perfil del frontal. La de pantalla replica los apoyos y guías reales del frontal. Con los puertos a la izquierda vistos desde delante, presenta la Plus completa, con su marco original, sin forzar. Comprueba que entra, asienta plano y deja toda el área activa visible. La del mando tiene agujeros de Ø15,25, Ø15,55 y Ø15,85 mm, señalados con uno, dos y tres puntos. Debe entrar a mano con poco juego. La manivela suministrada usa el segundo diámetro. Si el primero o el tercero son los adecuados, cambia `mando_holgura` a 0,25 o 0,85 mm y exporta de nuevo.
-2. **Imprime el frontal `01`, dos pletinas `12`, dos pletinas `13`, cuatro separadores `14` y el soporte del encoder que corresponda**. Si ya imprimiste el frontal de la V2, las pletinas se montan en sus postes. Monta pantalla y encoder en el frontal suelto. Comprueba que la pantalla queda centrada y firme con la junta puesta, y que el mando gira y recupera el pulsador. El cuerpo y la tapa se pueden adelantar en una impresión aparte. Los ajustes de la pantalla y el casquillo se hacen en las piezas del frontal.
-3. **Imprime o recupera el cuerpo `02`, la tapa `03` y la manivela `06`**. Antes de cerrar, enchufa el USB-C y prueba a expulsar y coger la microSD por la abertura trasera izquierda. Prueba el táctil cerca de las cuatro esquinas y monta la tapa.
+*Ilustración conceptual de la interfaz y el mando.*
 
-Usa PETG, boquilla de 0,4 mm, capa de 0,20 mm, cuatro perímetros y 20–25 % de relleno como punto de partida. Usa cinco perímetros en el soporte del encoder y la manivela. Las orientaciones del STL ya están preparadas. Revisa los pasos horizontales de los tornillos en la vista por capas. Comprueba el tiempo real en tu laminador. El cuerpo mide **172 × 82 mm** en la cama, más el margen de adhesión si se usa.
+## La experiencia
 
-## Montaje de la pantalla y el cierre
+- **Una línea del tiempo tangible.** El encoder recorre la colección por fecha; la barra inferior permite saltar a otro momento con un toque. Las fotografías se presentan con una transición animada.
+- **Más que imágenes.** Cada fotografía puede tener fecha, ubicación y una nota. La pantalla muestra un adelanto de la nota y permite leerla o editarla con el teclado táctil.
+- **Recuerdos con contexto.** El panel extrae metadatos EXIF; para coordenadas en España busca una localidad cercana sin depender de internet y conserva también las coordenadas.
+- **Todo desde el navegador.** El panel permite subir varias imágenes, editar fichas y eliminar fotos individualmente o en lote. Detecta duplicados cuando coincide el JPEG adaptado.
+- **Conectividad flexible.** Funciona en una red Wi-Fi de 2,4 GHz o mediante su propio punto de acceso. Un QR en la pantalla indica cómo abrir el panel.
+- **Una bienvenida especial.** Se puede activar una introducción para el próximo arranque; si se interrumpe, vuelve a aparecer hasta terminarla.
 
-- **Conserva el marco negro.** La holgura de las guías es de 0,60 mm por canto sobre los 92 × 60 mm nominales. El paso de la ventana es 76 × 51,6 mm para un área visible de 74,04 × 49,56 mm. La referencia de los cuatro tetones traseros es 75,14 × 51,39 mm, con taladro Ø2,3 mm acotado en el plano. Consulta las [referencias y licencias](REFERENCIAS.md).
-- **Junta perimetral.** Recorta espuma de célula cerrada de 1 mm con la [plantilla a escala 1:1](fabricacion/junta-pantalla-1a1.svg). Ponla en el anillo plano interior del frontal y comprueba que queda sobre el borde negro, fuera del área activa. La bahía de puertos y el eje siguen comunicados con el exterior.
-- **Sujeción por los cuatro anclajes de fábrica.** La pantalla completa entra por detrás del frontal, con los puertos a la izquierda vistos desde delante. Usa las pletinas `12` en el lado de los puertos y las `13` en el otro lado. Voltea la pletina inferior `12` para que el codo apunte hacia el borde inferior. En cada pletina, un tornillo pequeño pasa por la ranura y entra en el tetón del marco negro. El otro extremo se fija al poste del frontal con un M3 × 12 y un separador `14` de 2,8 mm entre poste y pletina. Presenta los ocho tornillos flojos antes de apretar. Asienta en cruz con la junta levemente comprimida, sin usar los tornillos para doblar las pletinas o tirar de la pantalla. [Esquema de la fijación](vistas/04-fijacion-pantalla.png)
-- **Tornillos de la pantalla.** Comprueba el tipo de tornillo y la profundidad útil de tu unidad. La ficha indica un taladro Ø2,3 mm, pero no especifica rosca ni profundidad. Elige cabeza plana por debajo, tipo cilíndrica o botón, de unos Ø4,5 mm que cubra la ranura. Resta los 3,2 mm de pletina al largo bajo cabeza para conocer la penetración. Si la altura de los tetones difiere, cambia `fondo_tetones` y reimprime las tres piezas pequeñas de fijación. No fuerces un tornillo que haga tope ni agrandes los taladros del módulo.
-- **Montaje alternativo por presión.** Si te falta la tornillería de pantalla o no coincide con tu unidad, usa dos raíles `04` con cuatro almohadillas de espuma de 2 mm sobre los apoyos de plástico. Orienta los extremos desviados al lado de los puertos y hacia fuera. Sujeta los raíles al frontal con los cuatro M3 × 12 y comprueba que la espuma solo toca los apoyos de plástico. El STEP de conjunto representa el montaje con pletinas.
-- **Cierre.** Coloca el frontal en los cuatro alojamientos del cuerpo. Fija los M3 × 10 desde atrás con un destornillador largo. Estos tornillos se quedan instalados al abrir la tapa. La tapa va con cuatro M3 × 8 por detrás. Pega cuatro pies adhesivos en la base, cerca de sus extremos delantero y trasero.
+## Cómo está construido
 
-## Montaje del EC11
+| Pieza | Función |
+| --- | --- |
+| Wireless-Tag WT32-SC01 Plus | ESP32-S3, pantalla táctil de 3,5 pulgadas y 480 × 320, Wi-Fi y lector microSD |
+| Encoder rotatorio EC11 con pulsador | Navegación física y apertura de notas o edición de metadatos |
+| microSD FAT32 | Almacenamiento local de las imágenes adaptadas y sus fichas JSON |
+| Batería Li-ion de una celda, 3300 mAh | Alimentación portátil del montaje realizado |
+| BMS, módulo de carga USB-C y convertidor elevador a 5 V | Protección, carga y alimentación de la pantalla; módulos independientes |
+| Frontal y soportes impresos | Fijación de la pantalla y el mando en una caja de madera |
 
-| Con qué llega el encoder | Soporte |
-|---|---|
-| Casquillo que pasa con poco juego por Ø7,4 mm y tuerca compatible | `05-soporte-encoder` |
-| Casquillo que pasa con poco juego por Ø7,4 mm y falta la tuerca | `10-soporte-encoder-abrazadera`, con un M3 × 20 y tuerca M3 |
-| Otro diámetro | `09-soporte-encoder-piloto` con tuerca del encoder o `11-abrazadera-piloto` sin ella. Los dos tienen Ø5,8 mm para ajustar a broca o lima. También se puede editar `casquillo_d` y regenerar. |
+### Conexiones
 
-1. Fija el encoder al soporte antes de colocar este último en el frontal. Con la versión plana, aprieta su tuerca sobre la cara delantera del soporte. Con la versión de abrazadera, sienta el hombro contra la placa y cierra la ranura con el tornillo lateral. El cuerpo debe quedar inmóvil al girar y al pulsar.
-2. Instala el soporte desde atrás con dos M3 × 6. Enchufa o suelda el cableado dejando holgura. Desde delante, monta el **mando negro original** sobre su eje estriado. La manivela se abraza a ese mando con un M3 × 20 y tuerca. Aprieta hasta que ambos giren juntos. El brazo se mantiene corto, con 20 mm entre ejes. Deja suficiente distancia al frontal para que el pomo pueda hundirse y recuperar su posición sin rozar.
-3. Prueba primero con el mando original y luego con la manivela. Si aún te falta el tornillo de la manivela, el mando de serie permite usar el encoder mientras tanto.
-
-### Tornillería y material
-
-| Cantidad | Material |
-|---:|---|
-| 4 | M3 × 10 para unir frontal y cuerpo |
-| 4 | M3 × 8 para la tapa |
-| 4 | M3 × 12 para las pletinas o los raíles |
-| 4 | Tornillos cortos compatibles con los anclajes traseros de tu WT32-SC01 Plus, para el montaje con pletinas |
-| 2 | M3 × 6 para el soporte del encoder |
-| 1 o 2 | M3 × 20 y tuerca M3. Uno para la manivela y otro si se usa soporte de abrazadera. |
-| 1 | Tuerca y arandela del encoder, solo para el soporte plano |
-| 1 | Junta de espuma de célula cerrada de 1 mm. Para el montaje por presión, añade cuatro almohadillas de 2 mm. |
-| 4 | Pies adhesivos de goma o silicona |
-
-Los alojamientos M3 se imprimen como agujeros piloto Ø2,65 mm. Pasa un macho M3 o forma la rosca con cuidado y verifica el ajuste en las piezas pequeñas antes de montar la carcasa.
-
-## Volumen reservado y comprobaciones
-
-El cuerpo con tapa mide **172 × 82 × 67 mm**. La bandeja deja **78 × 44 × 22 mm útiles** para batería y **28 × 44 × 22 mm** para módulos, antes de sumar sujeciones y cables. Tiene pasos para cableado y se accede quitando los cuatro tornillos traseros. La primera versión usa el USB-C de la Plus. La elección de batería, fijación, carga, protección, conversión y conexión eléctrica sigue pendiente.
-
-Se verificaron mallas y sólidos STEP, interferencias entre las piezas, reservas de la bandeja y envolventes de USB, microSD, pantalla y encoder. La V2.1 también se comprobó con los cuatro tornillos de pantalla y la trayectoria del destornillador representados en CAD. La prueba de giro de la V2 incluyó un avance simulado de 1,2 mm. Las dimensiones reales del casquillo, el mando, los apoyos traseros y el conector del cable se comprueban al recibir las piezas. Usa las plantillas para confirmar el ajuste antes de comprometer una impresión larga.
-
-## Archivos editables
-
-- [STL](fabricacion/stl/) · [STEP del conjunto](fabricacion/step/00-conjunto.step) · [fijación de la pantalla](vistas/04-fijacion-pantalla.png) · [vista interior con raíles](vistas/02-interior.png) · [despiece de la V2](vistas/03-despiece.png)
-- [CAD paramétrico en build123d](cad/entretiempo.py). Edita `Medidas`. Usa Python 3.13, build123d 0.13 y la tipografía GNU FreeSans.
-
-```sh
-python -m pip install build123d==0.13.0
-python cad/entretiempo.py
+```text
+                         ┌────────────────────────────┐
+                         │ WT32-SC01 Plus             │
+Encoder EC11 A ──────────┤ GPIO 10                    │
+Encoder EC11 B ──────────┤ GPIO 11                    │
+Pulsador ────────────────┤ GPIO 12                    │
+Comunes ─────────────────┤ GND                        │
+                         │ pantalla táctil + microSD  │
+                         └─────────────▲──────────────┘
+                                       │ 5 V y GND
+Batería Li-ion 1S ── BMS ── elevador a 5 V
+        │
+        └── módulo de carga USB-C para Li-ion 1S
 ```
 
-## Firmware y panel
+El encoder utiliza las resistencias pull-up internas; intercambia A y B si el giro queda invertido. El esquema de alimentación describe **la arquitectura del montaje**, no el pinout de módulos concretos: identifica sus bornes y sigue las especificaciones del cargador, BMS y convertidor elegidos. En el montaje original el elevador procede de una placa AIO de un dron; puede sustituirse por uno adecuado. La batería no dispone de sensor de tensión, por lo que el firmware no muestra un porcentaje de carga.
 
-Consulta la [guía del software](firmware/README.md) para compilar, configurar el Wi-Fi y preparar la microSD.
+## Diseño y fabricación
+
+El diseño para **caja de madera** incluye frontal, pletinas de fijación, mando lateral y plantilla de corte. También se conserva una carcasa de sobremesa completamente impresa, con su propio montaje.
+
+| Caja de madera | Carcasa impresa V2.1 |
+| --- | --- |
+| [Guía, medidas y montaje](caja-madera/README.md) | [Guía de impresión y montaje](GUIA-CARCASA-IMPRESA.md) |
+| [STL y STEP](caja-madera/) | [STL](fabricacion/stl/) · [STEP](fabricacion/step/) |
+
+![Vista interior de la fijación de pantalla](caja-madera/vista-montaje.png)
+
+*Vista CAD de la fijación de la pantalla en el frontal de madera.*
+
+Los archivos son un punto de partida: comprueba las dimensiones de tu pantalla, encoder, tornillos y caja antes de fabricar las piezas definitivas. Consulta las [referencias y licencias de terceros](REFERENCIAS.md).
+
+## Software
+
+El firmware está escrito en C con **ESP-IDF y LVGL**. El panel web se sirve desde el dispositivo; el navegador adapta las fotografías y el firmware las guarda en la microSD. El índice y la caché permiten recorrer colecciones grandes sin cargar todos los archivos al mismo tiempo.
+
+Para compilar necesitas ESP-IDF 5.5.6, Node.js y una tarjeta microSD FAT32. Desde la raíz del proyecto:
+
+```sh
+python3 tools/provision.py --name Alex --birth 2000-01-01
+npm --prefix firmware/web ci
+npm --prefix firmware/web run build
+idf.py -C firmware reconfigure build
+idf.py -C firmware -p /dev/ttyACM0 flash monitor
+```
+
+El script pide una contraseña y crea una configuración local ignorada por Git. Los binarios compilados incluyen esa configuración: no compartas imágenes de firmware personalizadas ni tu archivo local de credenciales. El panel funciona por HTTP en la red local. Las cadenas de bienvenida y algunos recursos del diseño están personalizados en el código y pueden adaptarse antes de compilar.
+
+La [guía de firmware](firmware/README.md) explica la preparación de la tarjeta, el acceso al panel, la edición de fotos y las pruebas en placa.
+
+## Estructura
+
+```text
+firmware/       Firmware ESP32-S3 y panel web
+caja-madera/    Frontal, soportes y plantilla para caja de madera
+cad/            Diseño paramétrico de la carcasa impresa
+fabricacion/    Archivos STL, STEP y plantillas de la carcasa impresa
+vistas/         Vistas CAD de la carcasa impresa
+tools/          Configuración del perfil y preparación de la microSD
+```
